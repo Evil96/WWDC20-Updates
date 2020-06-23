@@ -1,1 +1,227 @@
+**How to make a scroll view move to a location using ScrollViewReader**
 
+If you want to programmatically make SwiftUI’s ScrollView move to a specific location, you should embed a 
+ScrollViewReader inside it. This provides a scrollTo() method that can move to any view inside the parent scrollview, just by providing its anchor.
+
+For example, this creates 10 colored boxes in a vertical scroll view, and when you press the button it will scroll directly to the box with ID 8:
+
+struct ContentView: View {
+    let colors: [Color] = [.red, .green, .blue]
+
+    var body: some View {
+        ScrollView {
+            ScrollViewReader { value in
+                Button("Jump to #8") {
+                    value.scrollTo(8)
+                }
+
+                ForEach(0..<10) { i in
+                    Text("Example \(i)")
+                        .frame(width: 300, height: 300)
+                        .background(colors[i % colors.count])
+                        .id(i)
+                }
+            }
+        }
+    }
+}
+
+For more control over your scroll, add an anchor as the second parameter, like this:
+
+value.scrollTo(8, anchor: .top)
+
+Tip: If you call scrollTo() inside withAnimation() the movement will be animated.
+
+****************************************************************************************************************************************************************
+
+**How to show a map view**
+
+SwiftUI’s Map lets us embed maps alongside the rest of our views, and control whether to show the user, what annotations we want, and more.
+
+To get started, first create some sort of state that will track the coordinates being shown by the map. This uses MKCoordinateRegion, 
+which takes a latitude/longitude pair for the center of the map, plus a coordinate span that controls how much is visible.
+
+For example, this creates a map centered on the city of London:
+
+import MapKit
+import SwiftUI
+
+struct ContentView: View {
+    @State private var region = MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 51.507222, longitude: -0.1275), span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5))
+
+    var body: some View {
+        Map(coordinateRegion: $region)
+    }
+}
+
+Tip: You must import MapKit to get this functionality.
+
+As the user scrolls around, the region state will update automatically.
+
+****************************************************************************************************************************************************************
+
+**How to show progress on a task using ProgressView**
+
+SwiftUI’s ProgressView can be bound to a Double to show a horizontal progress bar. For example, this creates a progress bar with the title “Downloading”,
+that will read downloadAmount to determine how full the progress bar should be:
+
+struct ContentView: View {
+    @State private var downloadAmount = 0.0
+
+    var body: some View {
+        VStack {
+            ProgressView("Downloading…", value: downloadAmount, total: 100)
+        }
+    }
+}
+
+In practice, you’ll need some way to actually change that value, such as a timer, a network request, or other user interface. For example, 
+this will fill the progress bar up over a few seconds:
+
+struct ContentView: View {
+    @State private var downloadAmount = 0.0
+    let timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        VStack {
+            ProgressView("Downloading…", value: downloadAmount, total: 100)
+        }
+        .onReceive(timer) { _ in
+            if downloadAmount < 100 {
+                downloadAmount += 2
+            }
+        }
+    }
+}
+
+Note: Xcode will get angry if you set your progress value higher than the progress total – make sure you cap it as you can see above.
+
+****************************************************************************************************************************************************************
+
+How to play movies with VideoPlayer
+
+SwiftUI’s VideoPlayer view lets us playback movies from any URL, local or remote. It comes from the AVKit framework, so you should make sure and add import 
+AVKit before trying it out.
+
+Warning: At this time VideoPlayer works great on device, but seems to struggle in the simulator.
+
+As an example, if you had video.mp4 in your app bundle and wanted to play it back, you’d use this:
+
+VideoPlayer(player: AVPlayer(url:  Bundle.main.url(forResource: "video", withExtension: "mp4")!))
+
+Reminder: You need to add import AVKit to your Swift file to use this.
+
+And if you want to play a remote video, use its remote URL instead:
+
+VideoPlayer(player: AVPlayer(url:  URL(string: "https://bit.ly/swswift")!))
+
+If you want, you can provide a second parameter to the VideoPlayer initializer that adds content to be drawn over the video. 
+This will be drawn below the system video controls, but can respond to any events that aren’t caught by those controls.
+
+For example, this places the text “Watermark” at the very top of the video area:
+
+VideoPlayer(player: AVPlayer(url:  URL(string: "https://bit.ly/swswift")!)) {
+    VStack {
+        Text("Watermark")
+            .font(.caption)
+            .foregroundColor(.white)
+            .background(Color.black.opacity(0.7))
+            .clipShape(Capsule())
+        Spacer()
+    }
+}
+
+****************************************************************************************************************************************************************
+
+**How to integrate SpriteKit using SpriteView**
+
+SwiftUI’s SpriteView lets us render any SKScene subclass right inside SwiftUI, although you do need to be careful to either create your scene 
+from an SKS file that declares a size, or to specify a size yourself.
+
+To try it out, first add import SpriteKit to your Swift file.
+
+Second, create some sort of game scene you want to render. For example, this will create falling boxes wherever you tap, adding a physics effect so they 
+interact neatly:
+
+class GameScene: SKScene {
+    override func didMove(to view: SKView) {
+        physicsBody = SKPhysicsBody(edgeLoopFrom: frame)
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first else { return }
+        let location = touch.location(in: self)
+        let box = SKSpriteNode(color: UIColor.red, size: CGSize(width: 50, height: 50))
+        box.position = location
+        box.physicsBody = SKPhysicsBody(rectangleOf: CGSize(width: 50, height: 50))
+        addChild(box)
+    }
+}
+
+Third, create your game scene somewhere, making sure to give it a specific size. Mine is being created programmatically, 
+so I’m giving it a precise size of 300x400 points:
+
+struct ContentView: View {
+    var scene: SKScene {
+        let scene = GameScene()
+        scene.size = CGSize(width: 300, height: 400)
+        scene.scaleMode = .fill
+        return scene
+    }
+
+    var body: some View {
+        // more code here
+    }
+}
+
+And now you can create a SpriteView inside your body property, using that game scene:
+
+SpriteView(scene: scene)
+    .frame(width: 300, height: 400)
+    .edgesIgnoringSafeArea(.all)
+    
+The game scene you create is fully interactive, so it works just like a regular SKView would do in UIKit.
+
+****************************************************************************************************************************************************************
+
+SwiftUI’s TabView doubles up as the equivalent to a UIPageViewController, letting us swipe through multiple screens of content, 
+with paging dots at the bottom to show users where they are.
+
+To activate the page view style, attach the .tabViewStyle() modifier to your TabView, passing in PageTabViewStyle().
+
+For example, you could add this to your @main Swift file:
+
+struct SwiftUITestApp: App {
+    var body: some Scene {
+        WindowGroup {
+            TabView {
+                HomeView()
+                AccountView()
+                ProfileView()
+                SettingsView()
+            }
+            .tabViewStyle(PageTabViewStyle())
+        }
+    }
+}
+
+Warning: The paging dots are white and translucent white, so if your view background is also white you won’t see them.
+
+To solve this, either ask SwiftUI to place a background behind by placing extra modifier after tabViewStyle():
+
+.indexViewStyle(PageIndexViewStyle(backgroundDisplayMode: .always))
+
+Or just give your views a background color, like this:
+
+struct ContentView: View {
+    var body: some View {
+        Text("Hello, World")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black)
+    }
+}
+
+You can control the way paging dots are shown by adding an extra parameter to the PageTabViewStyle initializer. 
+For example, if you never wanted the paging dots to be shown, you would use this:
+
+.tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
