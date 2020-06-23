@@ -1,0 +1,294 @@
+**How to create multi-line editable text with TextEditor**
+
+SwiftUI has a TextEditor view for handling multi-line, scrolling text. You can set the font, change the colors as needed, and even 
+adjust line spacing and how many lines can be created.
+
+You need to store the current value of your text field somewhere, using @State or similar. For example, we could create a text view 
+to let the user enter profile data like this:
+
+struct ContentView: View {
+    @State private var profileText: String = "Enter your bio"
+
+    var body: some View {
+        TextEditor(text: $profileText)
+            .foregroundColor(.black)
+    }
+}
+
+For single-line text entry, use TextField instead.
+
+*****************************************************************************************************************************************************************
+
+**How to position views in a grid using LazyVGrid and LazyHGrid**
+
+SwiftUI’s LazyVGrid and LazyHGrid give us grid layouts with a fair amount of flexibility, but they are available only for iOS 14 or 
+later – I’m going to demonstrate them here, but if you need to support iOS 13 you should skip this part and look below for code that 
+works on iOS 13.
+
+The simplest possible grid is made up of three things: your raw data, an array of GridItem describing the layout you want, 
+and either a LazyVGrid or a LazyHGrid that brings together your data and your layout.
+
+For example, this will create a vertical grid layout using cells that are 80 points in size:
+
+struct ContentView: View {
+    let data = Array(1...1000).map { "Item \($0)" }
+
+    let columns = [
+        GridItem(.adaptive(minimum: 80))
+    ]
+
+    var body: some View {
+        ScrollView {
+            LazyVGrid(columns: columns, spacing: 20) {
+                ForEach(data, id: \.self) { item in
+                    Text(item)
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+}
+
+Using GridItem(.adaptive(minimum: 80)) means we want the grid to fit in as many items per row as possible, 
+using a minimum size of 80 points each.
+
+If you wanted to control the number of columns you can use .flexible() instead, which also lets you specify 
+how big each item should be but now lets you control how many columns there are. For example, this will create two columns:
+
+let columns = [
+    GridItem(.flexible()),
+    GridItem(.flexible())
+]
+
+let columns = [
+    GridItem(.flexible()),
+    GridItem(.flexible()),
+    GridItem(.flexible()),
+    GridItem(.flexible()),
+    GridItem(.flexible())
+]
+
+let columns = [
+    GridItem(.fixed(100)),
+    GridItem(.flexible()),
+]
+
+You can also use LazyHGrid to make a horizontally scrolling grid, which works in much the same way except it accepts rows in its initializer.
+
+For example, we could create 10 side by side heading images that are horizontally scrolling like this:
+
+struct ContentView: View {
+    let items = Array(1...10)
+
+    let rows = [
+        GridItem(.fixed(200)),
+    ]
+
+    var body: some View {
+        ScrollView(.horizontal) {
+            LazyHGrid(rows: rows, alignment: .center) {
+                ForEach(items, id: \.self) { item in
+                    Image("Heading\(item)")
+                }
+            }
+        }
+    }
+}
+
+If you’re stuck using iOS 13, read below for the alternative…
+
+SwiftUI gives us VStack for vertical layouts and HStack for horizontal layouts, but nothing that does both – nothing 
+that can lay out views in a grid structure.
+
+Fortunately we can write one ourselves by leveraging SwiftUI’s view builder system. This means writing a type that must 
+be created using a row and column count, plus a closure it can run to retrieve the views for a given cell in the grid. Inside 
+the body it can then loop over all the rows and columns and create cells inside VStack and HStack to make a grid, each time calling 
+the view closure to ask what should be in the cell.
+
+In code it looks like this:
+
+struct GridStack<Content: View>: View {
+    let rows: Int
+    let columns: Int
+    let content: (Int, Int) -> Content
+
+    var body: some View {
+        VStack {
+            ForEach(0 ..< rows, id: \.self) { row in
+                HStack {
+                    ForEach(0 ..< self.columns, id: \.self) { column in
+                        self.content(row, column)
+                    }
+                }
+            }
+        }
+    }
+
+    init(rows: Int, columns: Int, @ViewBuilder content: @escaping (Int, Int) -> Content) {
+        self.rows = rows
+        self.columns = columns
+        self.content = content
+    }
+}
+
+When you want to use that in a SwiftUI view, you’d write this:
+
+GridStack(rows: 4, columns: 4) { row, col in
+    Image(systemName: "\(row * 4 + col).circle")
+    Text("R\(row) C\(col)")
+}
+
+That creates a 4x4 grid with an image and text in each cell.
+
+*****************************************************************************************************************************************************************
+
+How to create a document-based app using FileDocument and DocumentGroup
+
+SwiftUI comes with support for document-based apps, which are apps that let users create, edit, and share documents such as text files. 
+In SwiftUI we’re given two main types to work with: the FileDocument protocol to define what a document in our app looks like, and the 
+DocumentGroup struct that gives us a default scene to let users create, open, and save documents.
+
+Creating your own document-based app take three steps:
+
+Defining what your document is, including how it should be saved and loaded.
+Creating some sort of view that lets users edit their documents.
+Creating a DocumentGroup capable of creating your files and loading them into your user interface.
+We’ll work through each of those here, starting with defining what your document is. Some document types save multiple files of 
+different types, but for now we’re going to say that we have support only plain text, and we want that text to be read and 
+written directly to disk.
+
+First, add import UniformTypeIdentifiers to the top of your Swift file, so you can bring in uniform type identifiers – a fixed way of saying 
+what data types your document can work with.
+
+Now add this struct, defining a simple text file:
+
+struct TextFile: FileDocument {
+    // tell the system we support only plain text
+    static var readableContentTypes = [UTType.plainText]
+
+    // by default our document is empty
+    var text = ""
+
+    // a simple initializer that creates new, empty documents
+    init(initialText: String = "") {
+        text = initialText
+    }
+
+    // this initializer loads data that has been saved previously
+    init(fileWrapper: FileWrapper, contentType: UTType) throws {
+        if let data = fileWrapper.regularFileContents {
+            text = String(decoding: data, as: UTF8.self)
+        }
+    }
+
+    // this will be called when the system wants to write our data to disk
+    func write(to fileWrapper: inout FileWrapper, contentType: UTType) throws {
+        let data = Data(text.utf8)
+        fileWrapper = FileWrapper(regularFileWithContents: data)
+    }
+}
+
+Notice how in the write(to:) method we convert our text string into a Data instance, then save that using a FileWrapper. 
+It’s not our job to say where the file should be stored – iOS takes care of that for us.
+
+Our second task is to create some sort of editor area where the user can edit our text. This should use an @Binding property wrapper 
+so that it updates the text in our TextFile struct rather than keeping its own local copy:
+
+struct ContentView: View {
+    @Binding var document: TextFile
+
+    var body: some View {
+        TextEditor(text: $document.text)
+    }
+}
+
+And now our final step is to edit the main Swift file for the project to include a DocumentGroup, which presents the system-standard interface for 
+browsing, opening, and creating files:
+
+@main
+struct YourAwesomeApp: App {
+    var body: some Scene {
+        DocumentGroup(newDocument: TextFile()) { file in
+            ContentView(document: file.$document)
+        }
+    }
+}
+
+That’s it! Your document-based app is ready to go.
+
+*****************************************************************************************************************************************************************
+
+How to lazy load views using LazyVStack and LazyHStack
+
+By default, SwiftUI’s VStack and HStack load all their contents up front, which is likely to be slow if you use them inside a scroll view. 
+If you want to load content lazily – i.e., only when it scrolls into view, you should use LazyVStack and LazyHStack as appropriate.
+
+For example, this will display 1000 text views lined up vertically, making sure each one is created only as it’s scrolled into view:
+
+struct ContentView: View {
+    var body: some View {
+        ScrollView {
+            LazyVStack {
+                ForEach(1...1000, id: \.self) { value in
+                    Text("Row \(value)")
+                }
+            }
+        }
+    }
+}
+
+Warning: These lazy stacks automatically have a flexible preferred width, so they will take up free space in a way that regular 
+stacks do not. To see the difference, try the code above and you’ll find you can drag around using the whitespace around the text, 
+but if you switch to a regular VStack you’ll see you need to scroll using the text itself.
+
+When using lazy stacks, SwiftUI will automatically create a view when it gets shown for the first time. After that the view will remain memory, 
+so be careful how much you show.
+
+If you want to see how the lazy loading works in practice, try this example:
+
+struct SampleRow: View {
+    let id: Int
+
+    var body: some View {
+        Text("Row \(id)")
+    }
+
+    init(id: Int) {
+        print("Loading row \(id)")
+        self.id = id
+    }
+}
+
+struct ContentView: View {
+    var body: some View {
+        ScrollView {
+            LazyVStack {
+                ForEach(1...1000, id: \.self, content: SampleRow.init)
+            }
+        }
+    }
+}
+
+*****************************************************************************************************************************************************************
+
+How to let users select a color with ColorPicker
+
+SwiftUI has a native ColorPicker control that allows the user to select a color. To use it, first create a Color property that can be 
+changed using @State or similar, then
+
+struct ContentView: View {
+    @State private var bgColor = Color.white
+
+    var body: some View {
+        VStack {
+            ColorPicker("Set the background color", selection: $bgColor)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(bgColor)
+    }
+}
+
+By default ColorPicker support opacity in the color selection, but you can disable that with a slightly different initializer:
+
+ColorPicker("Set the background color", selection: $bgColor, supportsOpacity: false)
+
