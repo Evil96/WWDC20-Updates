@@ -1,0 +1,78 @@
+Main File:
+
+import SwiftUI
+
+@main
+struct Tester_WWDCApp: App {
+    @StateObject private var store = ReadingListStore()
+    
+    @SceneBuilder var body: some Scene {
+        WindowGroup{
+            ContentView(store: store)
+        }
+        
+        #if os(macOS)
+        Settings{
+            BookClubSettingsView()
+        }
+        #endif
+    }
+}
+
+struct BookClubSettingsView: View{
+    var body: some View{
+        Text("Add your settings UI here.")
+            .padding()
+    }
+}
+
+ContentView File:
+
+import SwiftUI
+
+struct ContentView: View {
+    @ObservedObject var store: ReadingListStore
+    @SceneStorage("selectedItem") private var selectedItem: String?
+    
+    var selectedID: Binding<UUID?>{
+        Binding<UUID?>(
+            get: { selectedItem.flatMap { UUID(uuidString: $0) } },
+            set: { selectedItem = $0?.uuidString }
+        )
+    }
+    
+    var body: some View {
+        NavigationView{
+            List(store.books){ book in
+                NavigationLink(
+                    destination: Text(book.title),
+                    tag: book.id,
+                    selection: selectedID
+                ){
+                    Text(book.title)
+                }
+            }
+            .navigationTitle("Currently Reading")
+        }
+    }
+}
+
+BooksStructFile File:
+
+import SwiftUI
+
+class ReadingListStore: ObservableObject{
+    init(){}
+    
+    var books = [
+        Book(title: "Book #1", author: "Book #1"),
+        Book(title: "Book #2", author: "Book #2"),
+        Book(title: "Book #3", author: "Book #3")
+    ]
+}
+
+struct Book: Identifiable{
+    let id = UUID()
+    let title: String
+    let author: String
+}
