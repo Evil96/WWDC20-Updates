@@ -1,0 +1,15 @@
+//Example 2 -> TextEditor
+
+import SwiftUI
+
+struct TextEditorFile: View {
+    @State private var myBio = "Insert your bio here"
+    
+    var body: some View {
+        NavigationView{
+            TextEditor(text: $myBio)
+                .font(.title)
+                .foregroundColor(.green)
+        }
+    }
+}
